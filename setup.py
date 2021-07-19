@@ -15,6 +15,5 @@ setuptools.setup(
 	],
 	install_requires = [
 		'pyvisa',
-		'python3-tk',
 	],
 )
