@@ -15,6 +15,6 @@ setuptools.setup(
 	],
 	install_requires = [
 		'pyvisa',
-		'tkinter',
+		'python3-tk',
 	],
 )
