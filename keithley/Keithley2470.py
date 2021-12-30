@@ -202,12 +202,18 @@ if __name__ == '__main__':
 			if not isinstance(keithley, Keithley2470SafeForLGADs):
 				raise TypeError(f'The <keithley> must be an instance of Keithley2470SafeForLGADs, received an instance of {type(keithley)}.')
 			self.keithley = keithley
+			self._keithley_lock = threading.RLock()
 			
 			frame = tk.Frame(self)
 			frame.grid()
-			tk.Label(frame, text = f'Voltage ').grid()
+			
+			tk.Label(frame, text = f'Voltage (V)').grid()
 			self.voltage_entry = tk.Entry(frame, font=tkFont.nametofont("TkDefaultFont"))
 			self.voltage_entry.grid(row=0,column=1)
+			
+			tk.Label(frame, text = f'Current limit (µA)').grid(row=1,column=0)
+			self.current_limit_entry = tk.Entry(frame, font=tkFont.nametofont("TkDefaultFont"))
+			self.current_limit_entry.grid(row=1,column=1)
 			
 			def set_voltage():
 				try:
@@ -216,20 +222,40 @@ if __name__ == '__main__':
 					tk.messagebox.showerror(message = f'Check your input. Voltage must be a float number, received "{self.voltage_entry.get()}".')
 					return
 				print('Please wait while the voltage is being changed...')
-				self.keithley.source_voltage = voltage
+				with self._keithley_lock:
+					self.keithley.source_voltage = voltage
 				print('Voltage has been changed!')
 			
-			# ~ self.set_voltage_btn = tk.Button(self, text='Set this voltage', command=set_voltage)
-			# ~ self.set_voltage_btn.grid()
+			def set_current_limit():
+				try:
+					current = float(self.current_limit_entry.get())
+				except ValueError:
+					tk.messagebox.showerror(message = f'Check your input. The current limit must be a float number, received {repr(self.current_limit_entry.get())}.')
+					return
+				print(f'Changing current limit to {current} µA...')
+				with self._keithley_lock:
+					self.keithley.current_limit = current*1e-6
+				print('Current limit has been changed!')
 			
-			def enter(event=None):
+			def voltage_entry_enter_keybind_function(event=None):
 				def thread_function():
 					self.voltage_entry.config(state='disabled')
 					set_voltage()
 					self.voltage_entry.config(state='normal')
 				threading.Thread(target=thread_function).start()
-			self.voltage_entry.bind('<Return>', enter)
-			self.voltage_entry.bind('<KP_Enter>', enter)
+			
+			self.voltage_entry.bind('<Return>', voltage_entry_enter_keybind_function)
+			self.voltage_entry.bind('<KP_Enter>', voltage_entry_enter_keybind_function)
+			
+			def current_limit_entry_enter_keybind_function(event=None):
+				def thread_function():
+					self.current_limit_entry.config(state='disabled')
+					set_current_limit()
+					self.current_limit_entry.config(state='normal')
+				threading.Thread(target=thread_function).start()
+			
+			self.current_limit_entry.bind('<Return>', current_limit_entry_enter_keybind_function)
+			self.current_limit_entry.bind('<KP_Enter>', current_limit_entry_enter_keybind_function)
 
 	class Keithley2470SafeForLGADsGraphicControlParametersDisplay(tk.Frame):
 		def __init__(self, parent, keithley, *args, **kwargs):
@@ -255,7 +281,7 @@ if __name__ == '__main__':
 			
 			frame = tk.Frame(self)
 			frame.grid(pady=10)
-			tk.Label(frame, text = 'Current compliance: ').grid()
+			tk.Label(frame, text = 'Current limit: ').grid()
 			self.current_compliance_label = tk.Label(frame, text = '?')
 			self.current_compliance_label.grid()
 			
@@ -309,6 +335,7 @@ if __name__ == '__main__':
 		display.automatic_display_update('off')
 		print('PLEASE WAIT, the instrument is being shut down safely...')
 		keithley.source_voltage = 0
+		print(f'Voltage in the output of the Keithley is {keithley.source_voltage} V')
 		root.destroy()
 	root.protocol("WM_DELETE_WINDOW", on_closing)
 
