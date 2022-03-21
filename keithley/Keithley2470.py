@@ -341,7 +341,7 @@ if __name__ == '__main__':
 		keithley.output = 'off'
 		print(f'Voltage in the output of the Keithley is {keithley.source_voltage} V and the output is {repr(keithley.output)}')
 		root.destroy()
-		print(f'If the program does not end, just kill it (`ctrl`+`c` or `ctrl`+`z`), it is safe. I dont know what the problem is, it happens randomly and I think it is related with `tkinter` and the `threads`.')
+		print(f'##############\nIf the program does not end, just kill it now (`ctrl`+`c` or `ctrl`+`z`). It is safe.\n##############\n')
 	root.protocol("WM_DELETE_WINDOW", on_closing)
 
 	root.mainloop()
