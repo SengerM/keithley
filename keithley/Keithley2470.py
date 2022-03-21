@@ -195,14 +195,14 @@ if __name__ == '__main__':
 	import threading
 
 	class Keithley2470SafeForLGADsGraphicControlSetVoltage(tk.Frame):
-		def __init__(self, parent, keithley, *args, **kwargs):
+		def __init__(self, parent, keithley, keithley_threding_lock, *args, **kwargs):
 			tk.Frame.__init__(self, parent, *args, **kwargs)
 			self.parent = parent
 			
 			if not isinstance(keithley, Keithley2470SafeForLGADs):
 				raise TypeError(f'The <keithley> must be an instance of Keithley2470SafeForLGADs, received an instance of {type(keithley)}.')
 			self.keithley = keithley
-			self._keithley_lock = threading.RLock()
+			self._keithley_lock = keithley_threding_lock
 			
 			frame = tk.Frame(self)
 			frame.grid()
@@ -258,10 +258,11 @@ if __name__ == '__main__':
 			self.current_limit_entry.bind('<KP_Enter>', current_limit_entry_enter_keybind_function)
 
 	class Keithley2470SafeForLGADsGraphicControlParametersDisplay(tk.Frame):
-		def __init__(self, parent, keithley, *args, **kwargs):
+		def __init__(self, parent, keithley, keithley_threding_lock, *args, **kwargs):
 			tk.Frame.__init__(self, parent, *args, **kwargs)
 			self.parent = parent
 			self._auto_update_interval = 1 # seconds
+			self._keithley_lock = keithley_threding_lock
 			
 			if not isinstance(keithley, Keithley2470SafeForLGADs):
 				raise TypeError(f'The <keithley> must be an instance of Keithley2470SafeForLGADs, received an instance of {type(keithley)}.')
@@ -294,10 +295,11 @@ if __name__ == '__main__':
 			self.automatic_display_update('on')
 			
 		def update_display(self):
-			self.setted_voltage_label.config(text=f'{self.keithley.source_voltage} V')
-			self.measured_voltage_label.config(text=f'{self.keithley.measure_voltage():.5f} V')
-			self.current_compliance_label.config(text=f'{self.keithley.current_limit*1e6} µA')
-			self.measured_current_label.config(text=f'{self.keithley.measure_current()*1e6:.5f} µA')
+			with self._keithley_lock:
+				self.setted_voltage_label.config(text=f'{self.keithley.source_voltage} V')
+				self.measured_voltage_label.config(text=f'{self.keithley.measure_voltage():.5f} V')
+				self.current_compliance_label.config(text=f'{self.keithley.current_limit*1e6} µA')
+				self.measured_current_label.config(text=f'{self.keithley.measure_current()*1e6:.5f} µA')
 		
 		def automatic_display_update(self, status):
 			if not isinstance(status, str):
@@ -310,13 +312,14 @@ if __name__ == '__main__':
 				while self._automatic_display_update_status == 'on':
 					try:
 						self.update_display()
-					except:
-						pass
+					except Exception as e:
+						print(f'Cannot update display, reason: {repr(e)}')
 					time.sleep(.6)
 			
 			self._automatic_display_update_thread = threading.Thread(target = thread_function)
 			self._automatic_display_update_thread.start()
 	
+	keithley_lock = threading.RLock()
 	root = tk.Tk()
 	root.title('UZH Keythley safe control')
 	default_font = tkFont.nametofont("TkDefaultFont")
@@ -327,16 +330,18 @@ if __name__ == '__main__':
 	main_frame.grid(padx=20,pady=20)
 	tk.Label(main_frame, text = 'UZH Keithley 2470 Safe Control', font=("Calibri",22)).grid()
 	tk.Label(main_frame, text = f'Connected with {keithley.idn}', font=("Calibri",11)).grid()
-	Keithley2470SafeForLGADsGraphicControlSetVoltage(main_frame, keithley).grid(pady=20)
-	display = Keithley2470SafeForLGADsGraphicControlParametersDisplay(main_frame, keithley)
+	Keithley2470SafeForLGADsGraphicControlSetVoltage(main_frame, keithley, keithley_lock).grid(pady=20)
+	display = Keithley2470SafeForLGADsGraphicControlParametersDisplay(main_frame, keithley, keithley_lock)
 	display.grid(pady=20)
 	
 	def on_closing():
 		display.automatic_display_update('off')
 		print('PLEASE WAIT, the instrument is being shut down safely...')
 		keithley.source_voltage = 0
-		print(f'Voltage in the output of the Keithley is {keithley.source_voltage} V')
+		keithley.output = 'off'
+		print(f'Voltage in the output of the Keithley is {keithley.source_voltage} V and the output is {repr(keithley.output)}')
 		root.destroy()
+		print(f'If the program does not end, just kill it (`ctrl`+`c` or `ctrl`+`z`), it is safe. I dont know what the problem is, it happens randomly and I think it is related with `tkinter` and the `threads`.')
 	root.protocol("WM_DELETE_WINDOW", on_closing)
 
 	root.mainloop()
